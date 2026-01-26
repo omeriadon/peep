@@ -14,7 +14,7 @@ struct ContentView: View {
 	var body: some View {
 		NavigationStack {
 			GeometryReader { geo in
-				ZStack {
+				ZStack(alignment: .center) {
 					if let uiImage = viewModel.currentImage {
 						Image(uiImage: uiImage)
 							.resizable()
@@ -51,21 +51,16 @@ struct ContentView: View {
 							)
 
 					} else {
-						VStack {
-							Text("Waiting for image...")
-								.font(.footnote)
-							if let lastTime = viewModel.lastTimestamp {
-								Text("Last update: \(Int(Date().timeIntervalSince1970 - lastTime))s ago")
-									.font(.caption2)
-							}
-						}
-						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						Text("Waiting for image...")
+							.font(.footnote)
 					}
 					if viewModel.isSignalStale {
-						Text("NO SIGNAL")
+						Text("Stale Signal")
 							.font(.headline)
 							.foregroundColor(.white)
-							.ignoresSafeArea()
+							.padding(5)
+							.glassEffect(.clear.interactive())
+							.glassEffectTransition(.materialize)
 					}
 				}
 				.ignoresSafeArea()
@@ -75,7 +70,8 @@ struct ContentView: View {
 					Button(action: viewModel.cycleLens) {
 						Text(viewModel.lensButtonTitle)
 							.font(.caption)
-							.frame(maxWidth: .infinity)
+							.padding(5)
+							.glassEffect(.clear.interactive())
 					}
 					.buttonStyle(.plain)
 				}

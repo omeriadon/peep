@@ -10,7 +10,7 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum HEICEncoder {
-    static func encode(ciImage: CIImage, maxWidth: CGFloat = 5000) -> Data? {
+    static func encode(ciImage: CIImage, maxWidth: CGFloat = 4000) -> Data? {
         let cropped = ciImage.cropped(to: ciImage.extent.integral)
         let width = cropped.extent.width
         let scale = width > 0 ? min(maxWidth / width, 1) : 1
@@ -22,12 +22,13 @@ enum HEICEncoder {
 
         guard let data = CFDataCreateMutable(kCFAllocatorDefault, 0) else { return nil }
         guard let destination = CGImageDestinationCreateWithData(data, UTType.heic.identifier as CFString, 1, nil) else {
+
             return nil
         }
 
         let options: [CFString: Any] = [
             kCGImageDestinationLossyCompressionQuality: 0.1,
-            kCGImageDestinationImageMaxPixelSize: max(scaled.extent.width, scaled.extent.height)
+            kCGImageDestinationImageMaxPixelSize: max(scaled.extent.width, scaled.extent.height),
         ]
 
         CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
