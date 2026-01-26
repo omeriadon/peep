@@ -19,8 +19,6 @@ struct ContentView: View {
 						.aspectRatio(contentMode: .fit)
 						.ignoresSafeArea(.all)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
-//						.frame(width: geo.size.width, height: geo.size.height)
-//						.clipped()
 				} else {
 					Color.black
 				}
