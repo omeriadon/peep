@@ -10,7 +10,7 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum HEICEncoder {
-    static func encode(ciImage: CIImage, maxWidth: CGFloat = 2048) -> Data? {
+    static func encode(ciImage: CIImage, maxWidth: CGFloat = 5000) -> Data? {
         let cropped = ciImage.cropped(to: ciImage.extent.integral)
         let width = cropped.extent.width
         let scale = width > 0 ? min(maxWidth / width, 1) : 1

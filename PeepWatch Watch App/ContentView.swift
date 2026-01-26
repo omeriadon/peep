@@ -18,9 +18,9 @@ struct ContentView: View {
 					if let uiImage = viewModel.currentImage {
 						Image(uiImage: uiImage)
 							.resizable()
-							.ignoresSafeArea(.all)
-							.frame(width: geo.size.width, height: geo.size.height)
 							.aspectRatio(contentMode: .fit)
+							.ignoresSafeArea(.all)
+							.frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
 							.scaleEffect(viewModel.zoom)
 							.offset(viewModel.offset)
 							.gesture(
@@ -49,9 +49,6 @@ struct ContentView: View {
 								isContinuous: false,
 								isHapticFeedbackEnabled: true
 							)
-							.digitalCrownAccessory {
-								Text(viewModel.zoomLabel)
-							}
 
 					} else {
 						VStack {
