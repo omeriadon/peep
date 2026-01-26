@@ -1,5 +1,5 @@
 //
-//  CameraStreamer.swift
+//  WCSessionManager.swift
 //  Peep
 //
 //  Created by Adon Omeri on 25/1/2026.
@@ -13,6 +13,7 @@ final class WCSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 	static let shared = WCSessionManager()
 
 	@Published var reachable = false
+	@Published var requestedLens: String?
 
 	private override init() {
 		super.init()
@@ -61,8 +62,21 @@ final class WCSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 		reachable = session.isReachable
 	}
 
+	func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+		guard let type = message["type"] as? String else { return }
+		
+		DispatchQueue.main.async {
+			switch type {
+			case "requestLens":
+				if let lens = message["lens"] as? String {
+					self.requestedLens = lens
+				}
+			default:
+				break
+			}
+		}
+	}
+
 	func sessionDidBecomeInactive(_ session: WCSession) {}
 	func sessionDidDeactivate(_ session: WCSession) { session.activate() }
 }
-
-
