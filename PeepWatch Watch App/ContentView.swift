@@ -19,7 +19,7 @@ struct ContentView: View {
 						Image(uiImage: uiImage)
 							.resizable()
 							.aspectRatio(contentMode: .fit)
-							.ignoresSafeArea(.all)
+//							.ignoresSafeArea(.all)
 							.frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
 							.scaleEffect(viewModel.zoom)
 							.offset(viewModel.offset)
@@ -71,10 +71,18 @@ struct ContentView: View {
 				.ignoresSafeArea()
 			}
 			.toolbar {
-				ToolbarItem(placement: .topBarLeading) {
+				ToolbarItem(placement: .bottomBar) {
 					Button(action: viewModel.cycleLens) {
 						Text(viewModel.lensButtonTitle)
+							.font(.caption)
+							.frame(maxWidth: .infinity)
 					}
+					.buttonStyle(.plain)
+				}
+
+				ToolbarItem(placement: .bottomBar) {
+					Text(viewModel.zoomLabel)
+						.font(.caption)
 				}
 			}
 		}

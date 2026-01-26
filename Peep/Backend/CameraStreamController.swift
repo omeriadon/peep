@@ -23,12 +23,15 @@ final class CameraStreamController: NSObject, ObservableObject {
 	
 	private var currentDevice: AVCaptureDevice?
 	private var cancellables = Set<AnyCancellable>()
+	private let discoveredDevices: [AVCaptureDevice]
 	private let lensMetadata: [LensMetadata]
 	private let availableLensNames: Set<String>
 
 	override init() {
+		let discoveredDevices = Self.discoverBackCameraDevices()
 		self.previewLayer = AVCaptureVideoPreviewLayer(session: session)
-		self.lensMetadata = Self.detectLensMetadata()
+		self.discoveredDevices = discoveredDevices
+		self.lensMetadata = Self.detectLensMetadata(from: discoveredDevices)
 		self.availableLensNames = Set(lensMetadata.map { $0.name })
 
 		super.init()
@@ -43,9 +46,7 @@ final class CameraStreamController: NSObject, ObservableObject {
 		session.sessionPreset = .high
 
 		guard
-			let device = AVCaptureDevice.default(.builtInWideAngleCamera,
-				for: .video,
-				position: .back),
+			let device = preferredInitialDevice(),
 			let input = try? AVCaptureDeviceInput(device: device),
 			session.canAddInput(input)
 		else {
@@ -68,6 +69,11 @@ final class CameraStreamController: NSObject, ObservableObject {
 		}
 
 		session.commitConfiguration()
+	}
+
+	private func preferredInitialDevice() -> AVCaptureDevice? {
+		discoveredDevices.first(where: { $0.deviceType == .builtInWideAngleCamera }) ??
+			discoveredDevices.first
 	}
 
 	private func configureRotation() {
@@ -113,7 +119,7 @@ final class CameraStreamController: NSObject, ObservableObject {
 		session.beginConfiguration()
 		
 		guard
-			let newDevice = AVCaptureDevice.default(lensType.deviceType, for: .video, position: .back),
+			let newDevice = discoveredDevices.first(where: { lensType.matches(deviceType: $0.deviceType) }),
 			let newInput = try? AVCaptureDeviceInput(device: newDevice)
 		else {
 			session.commitConfiguration()
@@ -162,53 +168,64 @@ private extension CameraStreamController {
 		}
 	}
 
-	enum LensType: String, CaseIterable {
-		case wide
-		case ultrawide
-		case tele
+		enum LensType: String, CaseIterable {
+			case wide
+			case ultrawide
+			case tele
 
-		var deviceType: AVCaptureDevice.DeviceType {
-			switch self {
-			case .wide:
-				return .builtInWideAngleCamera
-			case .ultrawide:
-				return .builtInUltraWideCamera
-			case .tele:
-				return .builtInTelephotoCamera
+			var matchingDeviceTypes: [AVCaptureDevice.DeviceType] {
+				switch self {
+				case .wide:
+					return [.builtInWideAngleCamera, .builtInDualCamera, .builtInDualWideCamera, .builtInTripleCamera]
+				case .ultrawide:
+					return [.builtInUltraWideCamera, .builtInDualWideCamera, .builtInTripleCamera]
+				case .tele:
+					return [.builtInTelephotoCamera, .builtInDualCamera, .builtInTripleCamera]
+				}
+			}
+			var displayName: String {
+				switch self {
+				case .wide:
+					return "Wide"
+				case .ultrawide:
+					return "Ultra Wide"
+				case .tele:
+					return "Telephoto"
+				}
+			}
+			func matches(deviceType: AVCaptureDevice.DeviceType) -> Bool {
+				matchingDeviceTypes.contains(deviceType)
 			}
 		}
 
-		var displayName: String {
-			switch self {
-			case .wide:
-				return "Wide"
-			case .ultrawide:
-				return "Ultra Wide"
-			case .tele:
-				return "Telephoto"
+		static func discoverBackCameraDevices() -> [AVCaptureDevice] {
+			let discovery = AVCaptureDevice.DiscoverySession(
+				deviceTypes: Array(LensType.allCases.flatMap { $0.matchingDeviceTypes }),
+				mediaType: .video,
+				position: .back
+			)
+			return discovery.devices
+		}
+
+		static func detectLensMetadata(from devices: [AVCaptureDevice]) -> [LensMetadata] {
+			let baseDevice = devices.first(where: { $0.deviceType == .builtInWideAngleCamera })
+				?? devices.first
+			let baseFocal = baseDevice.flatMap { focalLength(for: $0) } ?? 1.0
+
+			var lenses = [LensMetadata]()
+			for lensType in LensType.allCases {
+				guard let device = devices.first(where: { lensType.matches(deviceType: $0.deviceType) }),
+					let zoom = zoomFactor(for: device, relativeTo: baseFocal)
+				else { continue }
+				lenses.append(LensMetadata(lensType: lensType, zoom: zoom))
 			}
+
+			if lenses.isEmpty {
+				lenses.append(LensMetadata(lensType: .wide, zoom: 1.0))
+			}
+
+			return lenses.sorted { $0.zoom < $1.zoom }
 		}
-	}
-
-	static func detectLensMetadata() -> [LensMetadata] {
-		let baseDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
-			?? LensType.allCases.compactMap { AVCaptureDevice.default($0.deviceType, for: .video, position: .back) }.first
-		let baseFocal = baseDevice.flatMap { focalLength(for: $0) } ?? 1.0
-
-		var lenses = [LensMetadata]()
-		for lensType in LensType.allCases {
-			guard let device = AVCaptureDevice.default(lensType.deviceType, for: .video, position: .back),
-				let zoom = zoomFactor(for: device, relativeTo: baseFocal)
-			else { continue }
-			lenses.append(LensMetadata(lensType: lensType, zoom: zoom))
-		}
-
-		if lenses.isEmpty {
-			lenses.append(LensMetadata(lensType: .wide, zoom: 1.0))
-		}
-
-		return lenses.sorted { $0.zoom < $1.zoom }
-	}
 
 	static func focalLength(for device: AVCaptureDevice) -> CGFloat? {
 		let fov = device.activeFormat.videoFieldOfView

@@ -26,7 +26,7 @@ enum HEICEncoder {
         }
 
         let options: [CFString: Any] = [
-            kCGImageDestinationLossyCompressionQuality: 0.0,
+            kCGImageDestinationLossyCompressionQuality: 0.1,
             kCGImageDestinationImageMaxPixelSize: max(scaled.extent.width, scaled.extent.height)
         ]
 

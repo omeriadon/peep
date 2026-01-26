@@ -18,12 +18,14 @@ final class CameraNavigatorViewModel: ObservableObject {
     }
 
     var zoomLabel: String { String(format: "%.1fx", zoom) }
-    var lensLabel: String {
-        guard lensDescriptors.indices.contains(selectedLensIndex) else { return WatchSessionManager.LensDescriptor.default.displayName }
-        return lensDescriptors[selectedLensIndex].displayName
+    private var selectedLensDescriptor: WatchSessionManager.LensDescriptor {
+        guard lensDescriptors.indices.contains(selectedLensIndex) else { return WatchSessionManager.LensDescriptor.default }
+        return lensDescriptors[selectedLensIndex]
     }
-    var lensButtonTitle: String { "\(lensLabel)" }
-    var zoomRange: ClosedRange<CGFloat> { 0.25...7.0 }
+    var lensButtonTitle: String {
+        selectedLensDescriptor.displayName.components(separatedBy: " (").first ?? selectedLensDescriptor.displayName
+    }
+    var zoomRange: ClosedRange<CGFloat> { 0.7...12.0 }
     var isSignalStale: Bool { WatchSessionManager.shared.isStale }
 
     private var hasReportedInitialFrame = false
@@ -77,6 +79,7 @@ final class CameraNavigatorViewModel: ObservableObject {
 
     func cycleLens() {
         guard !lensDescriptors.isEmpty else { return }
+		print(lensDescriptors)
         selectedLensIndex = (selectedLensIndex + 1) % lensDescriptors.count
         selectedLensName = lensDescriptors[selectedLensIndex].name
         requestSelectedLens()
