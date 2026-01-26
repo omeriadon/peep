@@ -12,24 +12,16 @@ struct ContentView: View {
 	@StateObject private var camera = CameraStreamController()
 
 	var body: some View {
-		ZStack {
-			CameraPreviewView(session: camera.session)
-				.ignoresSafeArea()
-
-			VStack {
-				Spacer()
-				Text(camera.isRunning ? "STREAMING" : "STOPPED")
-					.foregroundStyle(.white)
-					.padding(.bottom, 30)
+		Text(camera.isRunning ? "STREAMING" : "STOPPED")
+			.foregroundStyle(.white)
+			.padding(.bottom, 30)
+			.onAppear {
+				WCSessionManager.shared.start()
+				camera.start()
 			}
-		}
-		.onAppear {
-			WCSessionManager.shared.start()
-			camera.start()
-		}
-		.onDisappear {
-			camera.stop()
-		}
+			.onDisappear {
+				camera.stop()
+			}
 	}
 }
 

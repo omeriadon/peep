@@ -18,7 +18,7 @@ struct ContentView: View {
 				 .resizable()
 				 .scaledToFit()
 		 } else {
-			 Color.black
+			 Color.clear
 		 }
 	 }
  }
