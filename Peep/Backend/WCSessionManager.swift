@@ -6,42 +6,63 @@
 //
 
 import Combine
-import Foundation
 import UIKit
 import WatchConnectivity
 
-final class WCSessionManager: NSObject, WCSessionDelegate {
+final class WCSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 	static let shared = WCSessionManager()
-	override private init() { super.init() }
 
-	func start() {
-		guard WCSession.isSupported() else { return }
-		let session = WCSession.default
-		session.delegate = self
-		session.activate()
-		print("[iPhone] WCSession activated")
-	}
+	@Published var reachable = false
 
-	func sendFrame(_ jpegData: Data) {
-		let sizeKB = jpegData.count / 1024
-		print("[iPhone] Frame size:", sizeKB, "KB")
-
-		guard jpegData.count <= 65000 else {
-			print("[iPhone] Frame dropped (too large)")
-			return
-		}
-
-		WCSession.default.sendMessage(
-			["frame": jpegData],
-			replyHandler: nil,
-			errorHandler: { error in
-				print("[iPhone] sendMessage error:", error)
-			}
+	private override init() {
+		super.init()
+		NotificationCenter.default.addObserver(
+			self,
+			selector: #selector(appWillResignActive),
+			name: UIApplication.willResignActiveNotification,
+			object: nil
 		)
 	}
 
-	// Required stubs
-	func session(_: WCSession, activationDidCompleteWith _: WCSessionActivationState, error _: Error?) {}
-	func sessionDidBecomeInactive(_: WCSession) {}
+	func start() {
+		guard WCSession.isSupported() else { return }
+		let s = WCSession.default
+		s.delegate = self
+		s.activate()
+	}
+
+	@objc private func appWillResignActive() {
+		sendGoodbye()
+	}
+
+	func sendFrame(_ data: Data, timestamp: TimeInterval) {
+		guard WCSession.default.isReachable else { return }
+		WCSession.default.sendMessage(
+			["type": "frame", "data": data, "ts": timestamp],
+			replyHandler: nil,
+			errorHandler: nil
+		)
+	}
+
+	func sendGoodbye() {
+		guard WCSession.default.isReachable else { return }
+		WCSession.default.sendMessage(
+			["type": "goodbye", "ts": Date().timeIntervalSince1970],
+			replyHandler: nil,
+			errorHandler: nil
+		)
+	}
+
+	func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+		reachable = session.isReachable
+	}
+
+	func sessionReachabilityDidChange(_ session: WCSession) {
+		reachable = session.isReachable
+	}
+
+	func sessionDidBecomeInactive(_ session: WCSession) {}
 	func sessionDidDeactivate(_ session: WCSession) { session.activate() }
 }
+
+

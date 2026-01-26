@@ -5,25 +5,19 @@
 //  Created by Adon Omeri on 26/1/2026.
 //
 
-import AVFoundation
+import CoreImage
 import UIKit
 
-func jpegData(
-	from pixelBuffer: CVPixelBuffer,
-	maxWidth: CGFloat = 500,
-	quality: CGFloat = 0.3
-) -> Data? {
-	let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
 
-	let scale = maxWidth / ciImage.extent.width
-	let resized = ciImage.transformed(by: .init(scaleX: scale, y: scale))
 
-	let context = CIContext()
-	guard let cgImage = context.createCGImage(resized, from: resized.extent) else {
-		return nil
+enum JPEGEncoder {
+	static func encode(ciImage: CIImage, maxWidth: CGFloat = 500) -> Data? {
+		let cropped = ciImage.cropped(to: ciImage.extent.integral)
+		let scale = maxWidth / cropped.extent.width
+		let scaled = cropped.transformed(by: .init(scaleX: scale, y: scale))
+
+		let context = CIContext()
+		guard let cg = context.createCGImage(scaled, from: scaled.extent) else { return nil }
+		return UIImage(cgImage: cg).jpegData(compressionQuality: 0.3)
 	}
-
-	let uiImage = UIImage(cgImage: cgImage)
-
-	return uiImage.jpegData(compressionQuality: quality)
 }

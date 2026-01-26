@@ -10,34 +10,30 @@ import SwiftUI
 
 struct ContentView: View {
 	@StateObject private var camera = CameraStreamController()
+ @ObservedObject private var wc = WCSessionManager.shared
+ @State private var elapsed: Int = 0
+ @State private var timer: Timer?
 
-	var body: some View {
-		Text(camera.isRunning ? "STREAMING" : "STOPPED")
-			.foregroundStyle(.white)
-			.padding(.bottom, 30)
-			.onAppear {
-				WCSessionManager.shared.start()
-				camera.start()
-			}
-			.onDisappear {
-				camera.stop()
-			}
-	}
-}
+ var body: some View {
+	 VStack(spacing: 14) {
+		 Text(wc.reachable ? "WATCH CONNECTED" : "OPEN WATCH APP")
+		 Text("Streaming: \(elapsed)s")
+		 Text("Reframe on Watch")
+	 }
+	 .onAppear {
+		 WCSessionManager.shared.start()
+		 camera.start()
 
-struct CameraPreviewView: UIViewRepresentable {
-	let session: AVCaptureSession
-
-	func makeUIView(context _: Context) -> UIView {
-		let view = UIView()
-		let layer = AVCaptureVideoPreviewLayer(session: session)
-		layer.videoGravity = .resizeAspectFill
-		layer.frame = view.bounds
-		view.layer.addSublayer(layer)
-		return view
-	}
-
-	func updateUIView(_ uiView: UIView, context _: Context) {
-		uiView.layer.sublayers?.first?.frame = uiView.bounds
-	}
+		 timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+			 DispatchQueue.main.async { // <- ensures main thread publish
+				 elapsed += 1
+			 }
+		 }
+	 }
+	 .onDisappear {
+		 camera.stop()
+		 timer?.invalidate()
+		 timer = nil
+	 }
+ }
 }

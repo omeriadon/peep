@@ -6,41 +6,55 @@
 //
 
 import Combine
-import AVFoundation
-import WatchConnectivity
 import UIKit
+import WatchConnectivity
+
 
 final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 	@Published var image: UIImage?
+	@Published var lastTimestamp: TimeInterval?
 
 	override init() {
 		super.init()
-		let session = WCSession.default
-		session.delegate = self
-		session.activate()
-		print("[Watch] WCSession activated")
+		let s = WCSession.default
+		s.delegate = self
+		s.activate()
 	}
 
-	func session(
-		_ session: WCSession,
-		didReceiveMessage message: [String : Any]
-	) {
-		guard let data = message["frame"] as? Data else { return }
-		print("[Watch] Received frame:", data.count / 1024, "KB")
+	func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {}
 
-		guard let img = UIImage(data: data) else {
-			print("[Watch] Decode failed")
-			return
+	func sessionReachabilityDidChange(_ session: WCSession) {
+		if !session.isReachable {
+			DispatchQueue.main.async {
+				self.image = nil
+				self.lastTimestamp = nil
+			}
 		}
+	}
+
+	func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
+		guard let type = message["type"] as? String else { return }
 
 		DispatchQueue.main.async {
-			self.image = img
+			if type == "frame" {
+				if let data = message["data"] as? Data,
+				   let img = UIImage(data: data),
+				   let ts = message["ts"] as? TimeInterval {
+					self.image = img
+					self.lastTimestamp = ts
+				}
+			}
+
+			if type == "goodbye" {
+				self.image = nil
+				self.lastTimestamp = message["ts"] as? TimeInterval
+			}
 		}
 	}
 
-	func session(
-		_ session: WCSession,
-		activationDidCompleteWith activationState: WCSessionActivationState,
-		error: Error?
-	) {}
+	var isStale: Bool {
+		guard let ts = lastTimestamp else { return true }
+		return Date().timeIntervalSince1970 - ts > 1
+	}
 }
+

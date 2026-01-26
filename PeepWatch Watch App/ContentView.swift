@@ -6,20 +6,33 @@
 //
 
 import SwiftUI
-import Combine
 
 struct ContentView: View {
-	@StateObject private var wc = WatchSessionManager()
+	@StateObject private var session = WatchSessionManager()
 
- var body: some View {
-	 Group {
-		 if let image = wc.image {
-			 Image(uiImage: image)
-				 .resizable()
-				 .scaledToFit()
-		 } else {
-			 Color.clear
-		 }
-	 }
- }
+	var body: some View {
+		GeometryReader { geo in
+			ZStack {
+				if let img = session.image {
+					Image(uiImage: img)
+						.resizable()
+						.aspectRatio(contentMode: .fit)
+						.ignoresSafeArea(.all)
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+//						.frame(width: geo.size.width, height: geo.size.height)
+//						.clipped()
+				} else {
+					Color.black
+				}
+
+				if session.isStale {
+					Text("NO SIGNAL")
+						.foregroundColor(.white)
+						.font(.headline)
+				}
+			}
+			.ignoresSafeArea(edges: .all)
+		}
+	}
 }
+

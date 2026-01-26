@@ -2,42 +2,44 @@
 //  CameraStreamController.swift
 //  Peep
 //
-//  Created by Adon Omeri on 26/1/2026.
-//
 
 import AVFoundation
-import Foundation
 import Combine
+import CoreImage
+import UIKit
 
 final class CameraStreamController: NSObject, ObservableObject {
-	let session = AVCaptureSession()
+
+	private let session = AVCaptureSession()
 	private let output = AVCaptureVideoDataOutput()
 	private let queue = DispatchQueue(label: "camera.queue")
 
-	private var lastSent = CACurrentMediaTime()
-	private let targetFPS: Double = 10
+	private let previewLayer: AVCaptureVideoPreviewLayer
+	private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+	private var rotationObservation: NSKeyValueObservation?
 
-	@Published var isRunning = false
+	private var lastSent: CFTimeInterval = 0
+	private let fps: Double = 10
 
 	override init() {
+		self.previewLayer = AVCaptureVideoPreviewLayer(session: session)
 		super.init()
-		setup()
+		configure()
+		configureRotation()
 	}
 
-	private func setup() {
+	private func configure() {
 		session.beginConfiguration()
 		session.sessionPreset = .high
 
-		// Prefer ultra-wide
-		let device =
-			AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back)
-				?? AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
-
-		guard let cam = device,
-		      let input = try? AVCaptureDeviceInput(device: cam),
-		      session.canAddInput(input)
+		guard
+			let device = AVCaptureDevice.default(.builtInWideAngleCamera,
+												 for: .video,
+												 position: .back),
+			let input = try? AVCaptureDeviceInput(device: device),
+			session.canAddInput(input)
 		else {
-			print("[iPhone] Camera setup failed")
+			session.commitConfiguration()
 			return
 		}
 
@@ -45,57 +47,76 @@ final class CameraStreamController: NSObject, ObservableObject {
 
 		output.videoSettings = [
 			kCVPixelBufferPixelFormatTypeKey as String:
-				kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+				kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
 		]
-		output.setSampleBufferDelegate(self, queue: queue)
 		output.alwaysDiscardsLateVideoFrames = true
+		output.setSampleBufferDelegate(self, queue: queue)
 
-		guard session.canAddOutput(output) else {
-			print("[iPhone] Cannot add output")
-			return
+		if session.canAddOutput(output) {
+			session.addOutput(output)
 		}
 
-		session.addOutput(output)
 		session.commitConfiguration()
+	}
 
-		print("[iPhone] Camera configured:", cam.deviceType)
+	private func configureRotation() {
+		guard let input = session.inputs.first as? AVCaptureDeviceInput else { return }
+
+		let coordinator = AVCaptureDevice.RotationCoordinator(
+			device: input.device,
+			previewLayer: previewLayer
+		)
+		self.rotationCoordinator = coordinator
+
+		self.rotationObservation = coordinator.observe(
+			\.videoRotationAngleForHorizonLevelCapture,
+			options: NSKeyValueObservingOptions([.initial, .new])
+		) { [weak self] (_: AVCaptureDevice.RotationCoordinator,
+						  change: NSKeyValueObservedChange<CGFloat>) in
+			guard
+				let self,
+				let angle = change.newValue
+			else { return }
+
+			for connection in self.output.connections {
+				if connection.isVideoRotationAngleSupported(angle) {
+					connection.videoRotationAngle = angle
+				}
+			}
+		}
 	}
 
 	func start() {
-		guard !session.isRunning else { return }
+		UIApplication.shared.isIdleTimerDisabled = true
 		session.startRunning()
-		isRunning = true
-		print("[iPhone] Camera started")
 	}
 
 	func stop() {
-		guard session.isRunning else { return }
+		UIApplication.shared.isIdleTimerDisabled = false
 		session.stopRunning()
-		isRunning = false
-		print("[iPhone] Camera stopped")
 	}
 }
 
 extension CameraStreamController: AVCaptureVideoDataOutputSampleBufferDelegate {
+
 	func captureOutput(
 		_: AVCaptureOutput,
 		didOutput sampleBuffer: CMSampleBuffer,
 		from _: AVCaptureConnection
 	) {
 		let now = CACurrentMediaTime()
-		guard now - lastSent >= 1.0 / targetFPS else { return }
+		guard now - lastSent >= 1 / fps else { return }
 		lastSent = now
 
-		guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-			print("[iPhone] No pixel buffer")
-			return
-		}
+		guard WCSessionManager.shared.reachable else { return }
+		guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
-		guard let jpeg = jpegData(from: pixelBuffer) else {
-			print("[iPhone] JPEG encode failed")
-			return
-		}
+		let ci = CIImage(cvPixelBuffer: pb)
+		guard let data = JPEGEncoder.encode(ciImage: ci) else { return }
 
-		WCSessionManager.shared.sendFrame(jpeg)
+		WCSessionManager.shared.sendFrame(
+			data,
+			timestamp: Date().timeIntervalSince1970
+		)
 	}
 }
