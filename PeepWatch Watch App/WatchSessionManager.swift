@@ -12,12 +12,25 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 	
 	@Published var image: UIImage?
 	@Published var lastTimestamp: TimeInterval?
+	@Published var lenses: [LensDescriptor] = [LensDescriptor.default]
 	
 	var isStale: Bool {
 		guard let ts = lastTimestamp else { return true }
 		return Date().timeIntervalSince1970 - ts > 1
 	}
-	
+
+	struct LensDescriptor: Identifiable, Equatable {
+		let name: String
+		let zoom: CGFloat
+		let displayName: String
+
+		var id: String { name }
+
+		static var `default`: LensDescriptor {
+			LensDescriptor(name: "wide", zoom: 1.0, displayName: "Wide (1.0x)")
+		}
+	}
+
 	override init() {
 		super.init()
 		activateSession()
@@ -45,6 +58,7 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 			if !session.isReachable {
 				self.image = nil
 				self.lastTimestamp = nil
+				self.lenses = [LensDescriptor.default]
 			}
 		}
 	}
@@ -65,6 +79,16 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 			case "goodbye":
 				self.image = nil
 				self.lastTimestamp = message["ts"] as? TimeInterval
+			case "lensInfo":
+				if let raw = message["lenses"] as? [[String: Any]] {
+					let parsed = raw.compactMap { dict -> LensDescriptor? in
+						guard let name = dict["name"] as? String,
+							let zoom = dict["zoom"] as? Double,
+							let display = dict["displayName"] as? String else { return nil }
+						return LensDescriptor(name: name, zoom: CGFloat(zoom), displayName: display)
+					}
+					self.lenses = parsed.isEmpty ? [LensDescriptor.default] : parsed.sorted(by: { $0.zoom < $1.zoom })
+				}
 			default:
 				break
 			}

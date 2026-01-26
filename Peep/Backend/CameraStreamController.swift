@@ -23,27 +23,19 @@ final class CameraStreamController: NSObject, ObservableObject {
 	
 	private var currentDevice: AVCaptureDevice?
 	private var cancellables = Set<AnyCancellable>()
-	private let availableLenses: Set<String>
+	private let lensMetadata: [LensMetadata]
+	private let availableLensNames: Set<String>
 
 	override init() {
 		self.previewLayer = AVCaptureVideoPreviewLayer(session: session)
-		
-		var lenses = Set<String>()
-		if AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) != nil {
-			lenses.insert("wide")
-		}
-		if AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back) != nil {
-			lenses.insert("ultrawide")
-		}
-		if AVCaptureDevice.default(.builtInTelephotoCamera, for: .video, position: .back) != nil {
-			lenses.insert("tele")
-		}
-		self.availableLenses = lenses
-		
+		self.lensMetadata = Self.detectLensMetadata()
+		self.availableLensNames = Set(lensMetadata.map { $0.name })
+
 		super.init()
 		configure()
 		configureRotation()
 		observeLensRequests()
+		WCSessionManager.shared.updateAvailableLensPayload(lensMetadata.map { $0.dictionary })
 	}
 
 	private func configure() {
@@ -116,22 +108,12 @@ final class CameraStreamController: NSObject, ObservableObject {
 	}
 	
 	private func switchLens(_ lens: String) {
-		guard availableLenses.contains(lens) else { return }
+		guard availableLensNames.contains(lens), let lensType = LensType(rawValue: lens) else { return }
 		
 		session.beginConfiguration()
 		
-		let deviceType: AVCaptureDevice.DeviceType
-		switch lens {
-		case "ultrawide":
-			deviceType = .builtInUltraWideCamera
-		case "tele":
-			deviceType = .builtInTelephotoCamera
-		default:
-			deviceType = .builtInWideAngleCamera
-		}
-		
 		guard
-			let newDevice = AVCaptureDevice.default(deviceType, for: .video, position: .back),
+			let newDevice = AVCaptureDevice.default(lensType.deviceType, for: .video, position: .back),
 			let newInput = try? AVCaptureDeviceInput(device: newDevice)
 		else {
 			session.commitConfiguration()
@@ -162,6 +144,84 @@ final class CameraStreamController: NSObject, ObservableObject {
 	}
 }
 
+// MARK: - Lens metadata helpers
+
+private extension CameraStreamController {
+	struct LensMetadata {
+		let lensType: LensType
+		let zoom: CGFloat
+
+		var name: String { lensType.rawValue }
+		var dictionary: [String: Any] {
+			let formattedZoom = String(format: "%.1fx", zoom)
+			return [
+				"name": name,
+				"displayName": "\(lensType.displayName) (\(formattedZoom))",
+				"zoom": Double(zoom)
+			]
+		}
+	}
+
+	enum LensType: String, CaseIterable {
+		case wide
+		case ultrawide
+		case tele
+
+		var deviceType: AVCaptureDevice.DeviceType {
+			switch self {
+			case .wide:
+				return .builtInWideAngleCamera
+			case .ultrawide:
+				return .builtInUltraWideCamera
+			case .tele:
+				return .builtInTelephotoCamera
+			}
+		}
+
+		var displayName: String {
+			switch self {
+			case .wide:
+				return "Wide"
+			case .ultrawide:
+				return "Ultra Wide"
+			case .tele:
+				return "Telephoto"
+			}
+		}
+	}
+
+	static func detectLensMetadata() -> [LensMetadata] {
+		let baseDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+			?? LensType.allCases.compactMap { AVCaptureDevice.default($0.deviceType, for: .video, position: .back) }.first
+		let baseFocal = baseDevice.flatMap { focalLength(for: $0) } ?? 1.0
+
+		var lenses = [LensMetadata]()
+		for lensType in LensType.allCases {
+			guard let device = AVCaptureDevice.default(lensType.deviceType, for: .video, position: .back),
+				let zoom = zoomFactor(for: device, relativeTo: baseFocal)
+			else { continue }
+			lenses.append(LensMetadata(lensType: lensType, zoom: zoom))
+		}
+
+		if lenses.isEmpty {
+			lenses.append(LensMetadata(lensType: .wide, zoom: 1.0))
+		}
+
+		return lenses.sorted { $0.zoom < $1.zoom }
+	}
+
+	static func focalLength(for device: AVCaptureDevice) -> CGFloat? {
+		let fov = device.activeFormat.videoFieldOfView
+		let radians = CGFloat(fov) * .pi / 180
+		guard radians > 0 else { return nil }
+		return CGFloat(35.0 / (2.0 * tan(radians / 2)))
+	}
+
+	static func zoomFactor(for device: AVCaptureDevice, relativeTo baseFocal: CGFloat) -> CGFloat? {
+		guard let focal = focalLength(for: device), baseFocal > 0 else { return nil }
+		return focal / baseFocal
+	}
+}
 extension CameraStreamController: AVCaptureVideoDataOutputSampleBufferDelegate {
 
 	func captureOutput(
@@ -177,7 +237,7 @@ extension CameraStreamController: AVCaptureVideoDataOutputSampleBufferDelegate {
 		guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
 		let ci = CIImage(cvPixelBuffer: pb)
-		guard let data = JPEGEncoder.encode(ciImage: ci) else { return }
+		guard let data = HEICEncoder.encode(ciImage: ci) else { return }
 
 		WCSessionManager.shared.sendFrame(
 			data,

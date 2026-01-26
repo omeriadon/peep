@@ -15,6 +15,8 @@ final class WCSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 	@Published var reachable = false
 	@Published var requestedLens: String?
 
+	private var lensInfoPayload: [[String: Any]] = []
+
 	private override init() {
 		super.init()
 		NotificationCenter.default.addObserver(
@@ -45,6 +47,21 @@ final class WCSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 		)
 	}
 
+	func updateAvailableLensPayload(_ payload: [[String: Any]]) {
+		lensInfoPayload = payload
+		sendLensInfoMessage()
+	}
+
+	private func sendLensInfoMessage() {
+		guard WCSession.default.isReachable, !lensInfoPayload.isEmpty else { return }
+		WCSession.default.sendMessage([
+			"type": "lensInfo",
+			"lenses": lensInfoPayload
+		], replyHandler: nil) { error in
+			print("[WCSession] Lens info send error:", error)
+		}
+	}
+
 	func sendGoodbye() {
 		guard WCSession.default.isReachable else { return }
 		WCSession.default.sendMessage(
@@ -60,6 +77,9 @@ final class WCSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 
 	func sessionReachabilityDidChange(_ session: WCSession) {
 		reachable = session.isReachable
+		if session.isReachable {
+			sendLensInfoMessage()
+		}
 	}
 
 	func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
