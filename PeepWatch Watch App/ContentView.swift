@@ -18,8 +18,8 @@ struct ContentView: View {
 					if let uiImage = viewModel.currentImage {
 						Image(uiImage: uiImage)
 							.resizable()
+							.interpolation(.high)
 							.aspectRatio(contentMode: .fit)
-//							.ignoresSafeArea(.all)
 							.frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
 							.scaleEffect(viewModel.zoom)
 							.offset(viewModel.offset)
