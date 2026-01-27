@@ -37,23 +37,17 @@ final class CameraNavigatorViewModel: ObservableObject {
     init() {
         let manager = WatchSessionManager.shared
 
-        manager.$image
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] img in
-                guard let self = self else { return }
-                let hadFrame = self.hasReportedInitialFrame
-                self.currentImage = img
-                if img != nil {
-                    if !hadFrame {
-                        self.hasReportedInitialFrame = true
-                        self.resetTransforms()
-                    }
-                } else {
-                    self.hasReportedInitialFrame = false
-                    self.resetTransforms()
-                }
-            }
-            .store(in: &cancellables)
+		manager.$image
+			.receive(on: DispatchQueue.main)
+			.sink { [weak self] img in
+				guard let self = self else { return }
+				self.currentImage = img
+				if img != nil && !self.hasReportedInitialFrame {
+					self.hasReportedInitialFrame = true
+					self.resetTransforms()
+				}
+			}
+			.store(in: &cancellables)
 
         manager.$lastTimestamp
             .receive(on: DispatchQueue.main)

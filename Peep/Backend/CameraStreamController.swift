@@ -19,7 +19,7 @@ final class CameraStreamController: NSObject, ObservableObject {
 	private var rotationObservation: NSKeyValueObservation?
 
 	private var lastSent: CFTimeInterval = 0
-	private let fps: Double = 10
+	private let fps: Double = 8
 	
 	private var currentDevice: AVCaptureDevice?
 	private var cancellables = Set<AnyCancellable>()
