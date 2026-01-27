@@ -150,98 +150,87 @@ final class CameraStreamController: NSObject, ObservableObject {
 private extension CameraStreamController {
 	struct LensMetadata {
 		let device: AVCaptureDevice
-		let lensType: LensType
+		let name: String
+		let displayName: String
 		let zoom: CGFloat
 
-		var name: String { lensType.rawValue }
 		var dictionary: [String: Any] {
-			let formattedZoom = String(format: "%.1fx", zoom)
-			return [
+			[
 				"name": name,
-				"displayName": "\(lensType.displayName) (\(formattedZoom))",
+				"displayName": displayName,
 				"zoom": Double(zoom),
 			]
 		}
 	}
 
-	enum LensType: String, CaseIterable {
-		case front
-		case ultrawide
-		case wide
-		case tele
-		case tele2
-
-		var deviceType: AVCaptureDevice.DeviceType {
-			switch self {
-				case .front: return .builtInWideAngleCamera
-				case .ultrawide: return .builtInUltraWideCamera
-				case .wide: return .builtInWideAngleCamera
-				case .tele: return .builtInTelephotoCamera
-				case .tele2: return .builtInTelephotoCamera
-			}
-		}
-
-		var position: AVCaptureDevice.Position {
-			self == .front ? .front : .back
-		}
-
-		var displayName: String {
-			switch self {
-				case .front: return "Front"
-				case .ultrawide: return "Ultra Wide"
-				case .wide: return "Wide"
-				case .tele: return "Telephoto"
-				case .tele2: return "Telephoto 2"
-			}
-		}
-	}
-
 	static func discoverAllDevices() -> [AVCaptureDevice] {
-		let discovery = AVCaptureDevice.DiscoverySession(
+		let backSession = AVCaptureDevice.DiscoverySession(
 			deviceTypes: [
+				.builtInTripleCamera,
+				.builtInDualWideCamera,
+				.builtInDualCamera,
 				.builtInWideAngleCamera,
-				.builtInUltraWideCamera,
-				.builtInTelephotoCamera,
 			],
 			mediaType: .video,
-			position: .unspecified
+			position: .back
 		)
-		return discovery.devices
+
+		let frontSession = AVCaptureDevice.DiscoverySession(
+			deviceTypes: [.builtInWideAngleCamera],
+			mediaType: .video,
+			position: .front
+		)
+
+		return backSession.devices + frontSession.devices
 	}
 
 	static func detectLensMetadata(from devices: [AVCaptureDevice]) -> [LensMetadata] {
 		let backWide = devices.first { $0.position == .back && $0.deviceType == .builtInWideAngleCamera }
 		let baseFocal = backWide.flatMap { focalLength(for: $0) } ?? 1.0
 
+		var seen = Set<String>()
 		var lenses = [LensMetadata]()
-		var usedDevices = Set<String>()
 
-		for lensType in LensType.allCases {
-			let candidates = devices.filter {
-				$0.position == lensType.position &&
-					$0.deviceType == lensType.deviceType &&
-					!usedDevices.contains($0.uniqueID)
-			}
+		for device in devices {
+			guard !seen.contains(device.uniqueID) else { continue }
+			seen.insert(device.uniqueID)
 
-			for device in candidates.sorted(by: { focalLength(for: $0) ?? 0 < focalLength(for: $1) ?? 0 }) {
-				let zoom: CGFloat
-				if device.position == .front {
-					zoom = (focalLength(for: device) ?? baseFocal) / baseFocal
-				} else {
-					zoom = zoomFactor(for: device, relativeTo: baseFocal) ?? 1.0
-				}
-				lenses.append(LensMetadata(device: device, lensType: lensType, zoom: zoom))
-				usedDevices.insert(device.uniqueID)
-			}
-		}
+			let focal = focalLength(for: device) ?? baseFocal
+			let zoom = focal / baseFocal
+			let name = lensName(for: device, zoom: zoom)
+			let display = lensDisplayName(for: device, zoom: zoom)
 
-		if lenses.isEmpty {
-			if let fallback = devices.first {
-				lenses.append(LensMetadata(device: fallback, lensType: .wide, zoom: 1.0))
-			}
+			lenses.append(LensMetadata(
+				device: device,
+				name: name,
+				displayName: display,
+				zoom: zoom
+			))
 		}
 
 		return lenses
+	}
+
+	static func lensName(for device: AVCaptureDevice, zoom: CGFloat) -> String {
+		if device.position == .front { return "front" }
+
+		switch device.deviceType {
+			case .builtInUltraWideCamera: return "ultrawide"
+			case .builtInTelephotoCamera:
+				return zoom > 3.0 ? "tele2" : "tele"
+			default: return "wide"
+		}
+	}
+
+	static func lensDisplayName(for device: AVCaptureDevice, zoom: CGFloat) -> String {
+		let formatted = String(format: "%.1fx", zoom)
+		if device.position == .front { return "Front (\(formatted))" }
+
+		switch device.deviceType {
+			case .builtInUltraWideCamera: return "Ultra Wide (\(formatted))"
+			case .builtInTelephotoCamera: return "Telephoto (\(formatted))"
+			default: return "Wide (\(formatted))"
+		}
 	}
 
 	static func focalLength(for device: AVCaptureDevice) -> CGFloat? {
@@ -249,11 +238,6 @@ private extension CameraStreamController {
 		let radians = CGFloat(fov) * .pi / 180
 		guard radians > 0 else { return nil }
 		return CGFloat(35.0 / (2.0 * tan(radians / 2)))
-	}
-
-	static func zoomFactor(for device: AVCaptureDevice, relativeTo baseFocal: CGFloat) -> CGFloat? {
-		guard let focal = focalLength(for: device), baseFocal > 0 else { return nil }
-		return focal / baseFocal
 	}
 }
 
