@@ -31,13 +31,13 @@ final class CameraStreamController: NSObject, ObservableObject {
         previewLayer = AVCaptureVideoPreviewLayer(session: session)
         self.discoveredDevices = discoveredDevices
         lensMetadata = Self.detectLensMetadata(from: discoveredDevices)
-        availableLensNames = Set(lensMetadata.map { $0.name })
+        availableLensNames = Set(lensMetadata.map(\.name))
 
         super.init()
         configure()
         configureRotation()
         observeLensRequests()
-        WCSessionManager.shared.updateAvailableLensPayload(lensMetadata.map { $0.dictionary })
+        WCSessionManager.shared.updateAvailableLensPayload(lensMetadata.map(\.dictionary))
     }
 
     private func configure() {
@@ -95,7 +95,7 @@ final class CameraStreamController: NSObject, ObservableObject {
                     let angle = change.newValue
                 else { return }
 
-                for connection in self.output.connections {
+                for connection in output.connections {
                     if connection.isVideoRotationAngleSupported(angle) {
                         connection.videoRotationAngle = angle
                     }
@@ -105,7 +105,7 @@ final class CameraStreamController: NSObject, ObservableObject {
 
     private func observeLensRequests() {
         WCSessionManager.shared.$requestedLens
-            .compactMap { $0 }
+            .compactMap(\.self)
             .removeDuplicates()
             .sink { [weak self] lens in
                 self?.switchLens(lens)

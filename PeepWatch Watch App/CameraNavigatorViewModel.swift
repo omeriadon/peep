@@ -27,7 +27,7 @@ final class CameraNavigatorViewModel: ObservableObject {
         selectedLensDescriptor.displayName.components(separatedBy: " (").first ?? selectedLensDescriptor.displayName
     }
 
-    var zoomRange: ClosedRange<CGFloat> { 0.1 ... 2 }
+    var zoomRange: ClosedRange<CGFloat> { 0.1 ... 2.0 }
     var isSignalStale: Bool { WatchSessionManager.shared.isStale }
 
     private var hasReportedInitialFrame = false
@@ -42,11 +42,11 @@ final class CameraNavigatorViewModel: ObservableObject {
         manager.$image
             .receive(on: DispatchQueue.main)
             .sink { [weak self] img in
-                guard let self = self else { return }
-                self.currentImage = img
-                if img != nil, !self.hasReportedInitialFrame {
-                    self.hasReportedInitialFrame = true
-                    self.resetTransforms()
+                guard let self else { return }
+                currentImage = img
+                if img != nil, !hasReportedInitialFrame {
+                    hasReportedInitialFrame = true
+                    resetTransforms()
                 }
             }
             .store(in: &cancellables)
@@ -59,16 +59,16 @@ final class CameraNavigatorViewModel: ObservableObject {
         manager.$lenses
             .receive(on: DispatchQueue.main)
             .sink { [weak self] lenses in
-                guard let self = self else { return }
-                let previousLensName = self.selectedLensName
-                self.lensDescriptors = lenses.isEmpty ? [WatchSessionManager.LensDescriptor.default] : lenses
-                if let index = self.lensDescriptors.firstIndex(where: { $0.name == previousLensName }) {
-                    self.selectedLensIndex = index
+                guard let self else { return }
+                let previousLensName = selectedLensName
+                lensDescriptors = lenses.isEmpty ? [WatchSessionManager.LensDescriptor.default] : lenses
+                if let index = lensDescriptors.firstIndex(where: { $0.name == previousLensName }) {
+                    selectedLensIndex = index
                 } else {
-                    self.selectedLensIndex = 0
-                    self.selectedLensName = self.lensDescriptors[self.selectedLensIndex].name
+                    selectedLensIndex = 0
+                    selectedLensName = lensDescriptors[selectedLensIndex].name
                 }
-                self.requestSelectedLens()
+                requestSelectedLens()
             }
             .store(in: &cancellables)
     }
