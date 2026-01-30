@@ -12,7 +12,7 @@ struct PeepApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-				.fontDesign(.monospaced)
+                .fontDesign(.monospaced)
         }
     }
 }

@@ -22,7 +22,6 @@ enum HEICEncoder {
 
         guard let data = CFDataCreateMutable(kCFAllocatorDefault, 0) else { return nil }
         guard let destination = CGImageDestinationCreateWithData(data, UTType.heic.identifier as CFString, 1, nil) else {
-
             return nil
         }
 

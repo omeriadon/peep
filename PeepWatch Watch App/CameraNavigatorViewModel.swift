@@ -3,8 +3,8 @@
 //  PeepWatch Watch App
 //
 
-import Foundation
 import Combine
+import Foundation
 import UIKit
 
 final class CameraNavigatorViewModel: ObservableObject {
@@ -17,15 +17,17 @@ final class CameraNavigatorViewModel: ObservableObject {
         WatchSessionManager.shared.lastTimestamp
     }
 
-    var zoomLabel: String { String(format: "%.1fx", zoom) }
+    var zoomLabel: String { String(format: "%.1fx", zoom * 10) }
     private var selectedLensDescriptor: WatchSessionManager.LensDescriptor {
         guard lensDescriptors.indices.contains(selectedLensIndex) else { return WatchSessionManager.LensDescriptor.default }
         return lensDescriptors[selectedLensIndex]
     }
+
     var lensButtonTitle: String {
         selectedLensDescriptor.displayName.components(separatedBy: " (").first ?? selectedLensDescriptor.displayName
     }
-    var zoomRange: ClosedRange<CGFloat> { 0.7...12.0 }
+
+    var zoomRange: ClosedRange<CGFloat> { 0.1 ... 2 }
     var isSignalStale: Bool { WatchSessionManager.shared.isStale }
 
     private var hasReportedInitialFrame = false
@@ -37,17 +39,17 @@ final class CameraNavigatorViewModel: ObservableObject {
     init() {
         let manager = WatchSessionManager.shared
 
-		manager.$image
-			.receive(on: DispatchQueue.main)
-			.sink { [weak self] img in
-				guard let self = self else { return }
-				self.currentImage = img
-				if img != nil && !self.hasReportedInitialFrame {
-					self.hasReportedInitialFrame = true
-					self.resetTransforms()
-				}
-			}
-			.store(in: &cancellables)
+        manager.$image
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] img in
+                guard let self = self else { return }
+                self.currentImage = img
+                if img != nil, !self.hasReportedInitialFrame {
+                    self.hasReportedInitialFrame = true
+                    self.resetTransforms()
+                }
+            }
+            .store(in: &cancellables)
 
         manager.$lastTimestamp
             .receive(on: DispatchQueue.main)
@@ -73,7 +75,7 @@ final class CameraNavigatorViewModel: ObservableObject {
 
     func cycleLens() {
         guard !lensDescriptors.isEmpty else { return }
-		print(lensDescriptors)
+        print(lensDescriptors)
         selectedLensIndex = (selectedLensIndex + 1) % lensDescriptors.count
         selectedLensName = lensDescriptors[selectedLensIndex].name
         requestSelectedLens()
