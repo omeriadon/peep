@@ -9,10 +9,10 @@ import SwiftUI
 
 @main
 struct PeepWatch_Watch_AppApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .fontDesign(.monospaced)
-        }
-    }
+	var body: some Scene {
+		WindowGroup {
+			ContentView()
+				.fontDesign(.monospaced)
+		}
+	}
 }
