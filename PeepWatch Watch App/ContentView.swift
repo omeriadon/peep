@@ -46,7 +46,6 @@ struct ContentView: View {
 								isHapticFeedbackEnabled: true
 							)
 					}
-					//					.defaultScrollAnchor(.center)
 				} else {
 					Text("Waiting for image...")
 						.font(.footnote)
