@@ -22,9 +22,7 @@ struct ContentView: View {
 
             Text("\(elapsed)s")
 
-            Text("Adjust with Watch")
-
-            Text("If Watch can't detect all lens on your iPhone, restart both apps. This is Apple's fault and is not fixable from the code side")
+            Text("Reframe and zoom with Watch")
         }
 
         .onAppear {

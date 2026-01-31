@@ -5,6 +5,7 @@
 //  Created by Adon Omeri on 25/1/2026.
 //
 
+import Combine
 import SwiftUI
 
 struct ContentView: View {
@@ -14,6 +15,10 @@ struct ContentView: View {
     @State private var scrollPosition: CGPoint = .zero
 
     @FocusState private var crownFocused: Bool
+
+    @State private var timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+
+    @State var isSignalStale = false
 
     var body: some View {
         NavigationStack {
@@ -41,20 +46,25 @@ struct ContentView: View {
                                 isHapticFeedbackEnabled: true
                             )
                     }
-                    .defaultScrollAnchor(.center)
-                    .ignoresSafeArea()
+                    //					.defaultScrollAnchor(.center)
                 } else {
                     Text("Waiting for image...")
                         .font(.footnote)
                 }
-                if viewModel.isSignalStale {
-                    Text("Stale Signal")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding(5)
-                        .glassEffect(.clear.tint(.red).interactive())
-                        .glassEffectTransition(.materialize)
+                VStack {
+                    if isSignalStale, displayedImage != nil {
+                        Text("Stale Signal")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(5)
+                            .glassEffect(.clear.tint(.red).interactive())
+                            .glassEffectTransition(.materialize)
+                            .onReceive(timer) { _ in
+                                isSignalStale = viewModel.isSignalStale
+                            }
+                    }
                 }
+                .animation(.easeInOut, value: viewModel.isSignalStale)
             }
 
             .onReceive(viewModel.$currentImage) { img in
@@ -64,7 +74,7 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: viewModel.cycleLens) {
                         Text(viewModel.lensButtonTitle)
-                            .font(.caption)
+                            .font(.caption2)
                             .padding(5)
                             .glassEffect(.clear.interactive())
                     }
@@ -73,7 +83,7 @@ struct ContentView: View {
 
                 ToolbarItem(placement: .topBarLeading) {
                     Text(viewModel.zoomLabel)
-                        .font(.caption)
+                        .font(.caption2)
                 }
             }
             .onAppear { crownFocused = true }
