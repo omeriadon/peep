@@ -9,7 +9,7 @@ import UIKit
 
 final class CameraNavigatorViewModel: ObservableObject {
 	@Published var currentImage: UIImage?
-	@Published var zoom: CGFloat = 0.1
+	@Published var zoom: CGFloat = 1.0
 	@Published var offset: CGSize = .zero
 	@Published var baseOffset: CGSize = .zero
 

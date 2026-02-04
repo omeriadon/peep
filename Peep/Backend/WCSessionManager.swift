@@ -72,7 +72,9 @@ final class WCSessionManager: NSObject, WCSessionDelegate, ObservableObject {
 	}
 
 	func session(_ session: WCSession, activationDidCompleteWith _: WCSessionActivationState, error _: Error?) {
-		reachable = session.isReachable
+		Task { @MainActor in
+			reachable = session.isReachable
+		}
 	}
 
 	func sessionReachabilityDidChange(_ session: WCSession) {
